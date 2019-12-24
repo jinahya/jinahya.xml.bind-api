@@ -2,6 +2,7 @@ package com.github.jinahya.xml.bind;
 
 import org.xml.sax.SAXException;
 
+import javax.xml.XMLConstants;
 import javax.xml.bind.JAXBContext;
 import javax.xml.transform.Result;
 import javax.xml.transform.Source;
@@ -16,6 +17,8 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.function.Supplier;
 
+import static java.util.stream.Collectors.toList;
+
 /**
  * A utility class for {@link JAXBContext}.
  *
@@ -27,14 +30,9 @@ public class JinahyaJaxbContextUtils {
 
     // -----------------------------------------------------------------------------------------------------------------
     // https://www.programcreek.com/java-api-examples/?class=javax.xml.bind.JAXBContext&method=generateSchema
-    public static Schema newSchema(final JAXBContext jaxbContext,
-                                   final Supplier<? extends SchemaFactory> factorySupplier)
-            throws IOException, SAXException {
+    public static List<byte[]> generateSchema(final JAXBContext jaxbContext) throws IOException {
         if (jaxbContext == null) {
             throw new NullPointerException("jaxbContext is null");
-        }
-        if (factorySupplier == null) {
-            throw new NullPointerException("factorySupplier is null");
         }
         final List<ByteArrayOutputStream> outputs = new ArrayList<>();
         jaxbContext.generateSchema(JinahyaSchemaOutputResolverUtils.of((nameSpaceUri, suggestedFileName) -> {
@@ -44,10 +42,25 @@ public class JinahyaJaxbContextUtils {
             result.setSystemId("");
             return result;
         }));
-        assert !outputs.isEmpty() : "empty outputs";
+        for (final ByteArrayOutputStream output : outputs) {
+            System.out.println(new String(output.toByteArray()));
+        }
+        return outputs.stream().map(ByteArrayOutputStream::toByteArray).collect(toList());
+    }
+
+    // https://www.programcreek.com/java-api-examples/?class=javax.xml.bind.JAXBContext&method=generateSchema
+    public static Schema newSchema(final JAXBContext jaxbContext,
+                                   final Supplier<? extends SchemaFactory> factorySupplier)
+            throws IOException, SAXException {
+        if (jaxbContext == null) {
+            throw new NullPointerException("jaxbContext is null");
+        }
+        if (factorySupplier == null) {
+            throw new NullPointerException("factorySupplier is null");
+        }
+        final List<byte[]> outputs = generateSchema(jaxbContext);
         final Source[] sources
                 = outputs.stream()
-                .map(ByteArrayOutputStream::toByteArray)
                 .map(ByteArrayInputStream::new)
                 .map(input -> new StreamSource(input, ""))
                 .toArray(StreamSource[]::new);
@@ -60,6 +73,10 @@ public class JinahyaJaxbContextUtils {
             throw new NullPointerException("schemaLanguage is null");
         }
         return newSchema(jaxbContext, () -> SchemaFactory.newInstance(schemaLanguage));
+    }
+
+    public static Schema newSchema(final JAXBContext jaxbContext) throws IOException, SAXException {
+        return newSchema(jaxbContext, XMLConstants.W3C_XML_SCHEMA_NS_URI);
     }
 
     // -----------------------------------------------------------------------------------------------------------------
